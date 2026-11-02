@@ -19,13 +19,13 @@ input style, evaluates genuine/impostor sessions, runs the swap test, prints a t
 writes `out/demo_results.json`.
 
 ```
-Marrow 1.0.0 — synthetic data, threshold 2.0 fixed before evaluation
+Marrow 1.1.0 — synthetic data, threshold 2.0 fixed before evaluation
 style                         FRR    FAR  swap-admit
-eyegaze_osk                  0.0%   2.1%        0.0%
-mouse_keyboard               6.2%   0.0%        0.0%
-slow_pointer_dictation       2.1%   0.0%        0.0%
-switch_scan                  0.0%  12.5%        0.0%
-overall                      2.1%   3.6%        0.0%
+eyegaze_osk                  0.0%   0.0%        0.0%
+mouse_keyboard               2.1%   0.0%        0.0%
+slow_pointer_dictation       0.0%   0.0%        0.0%
+switch_scan                  0.0%   0.0%        0.0%
+overall                      0.5%   0.0%        0.0%
 swap test: PASS
 ```
 
@@ -42,8 +42,8 @@ swap test: PASS
    sessions: **0 / 192 accepted** across all styles and pairs.
 4. **Reports false-accept and false-doubt rates with the threshold fixed first.** The
    threshold is the constant `DECISION_THRESHOLD = 2.0` in `marrow.py`, chosen before the
-   evaluation run and never fitted to test data. Measured: **FRR 2.1% (4/192), FAR 3.6%
-   (7/192)**. Per-style numbers are in `RESULTS.md`.
+   evaluation run and never fitted to test data. Measured: **FRR 0.5% (1/192), FAR 0.0%
+   (0/192)**. Per-style numbers are in `RESULTS.md`.
 5. **Documented, OS-neutral format with offline train/test.** `FORMAT.md` specifies JSONL
    with millisecond timestamps, pointer positions as screen fractions, clicks, and text
    events labelled `typed` / `on_screen_keyboard` / `inserted` with counts only.
@@ -61,8 +61,10 @@ python3 marrow.py eval  profile.json sessions/*.jsonl
 ## How it works (short)
 
 Each acquisition contributes motor features: movement duration, path-to-straight ratio,
-settle-to-click ratio and submovement count. Text contributes inter-key intervals,
-correction rate and insertion source. A profile stores the robust median and deviation of
+settle-to-click ratio, submovement count and **click-hold** (how long the button/dwell
+stays down). Text contributes inter-key intervals, correction rate and insertion source.
+Click-hold is the feature that carries switch scanning: with no pointer path, the hold
+time still belongs to the person. A profile stores the robust median and deviation of
 each feature from enrolment. A session is scored by the mean of its two worst weighted
 robust z-scores — one decisively wrong dynamic is enough to doubt, while ordinary
 session-to-session variation is not. Duration is down-weighted because fatigue moves it.

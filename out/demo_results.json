@@ -1,18 +1,18 @@
 {
- "version": "1.0.0",
+ "version": "1.1.0",
  "threshold": 2.0,
  "styles": {
   "eyegaze_osk": {
    "genuine": 48,
    "false_doubt": 0,
    "impostors": 48,
-   "admitted": 1,
+   "admitted": 0,
    "swap": 48,
    "swap_admitted": 0
   },
   "mouse_keyboard": {
    "genuine": 48,
-   "false_doubt": 3,
+   "false_doubt": 1,
    "impostors": 48,
    "admitted": 0,
    "swap": 48,
@@ -20,7 +20,7 @@
   },
   "slow_pointer_dictation": {
    "genuine": 48,
-   "false_doubt": 1,
+   "false_doubt": 0,
    "impostors": 48,
    "admitted": 0,
    "swap": 48,
@@ -30,14 +30,14 @@
    "genuine": 48,
    "false_doubt": 0,
    "impostors": 48,
-   "admitted": 6,
+   "admitted": 0,
    "swap": 48,
    "swap_admitted": 0
   }
  },
  "total": {
-  "FRR": 0.020833333333333332,
-  "FAR": 0.036458333333333336,
+  "FRR": 0.005208333333333333,
+  "FAR": 0.0,
   "swap_rate": 0.0,
   "genuine": 192,
   "impostors": 192,

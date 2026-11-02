@@ -19,22 +19,22 @@ Commands:
 from __future__ import annotations
 import json, math, random, statistics, sys, pathlib
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 FORMAT = "marrow.session.v1"
 DECISION_THRESHOLD = 2.0          # FIXED before the evaluation run; not fitted to test data
 FEATURES = ("log_duration", "path_ratio", "settle_ratio", "submovements",
-            "log_iki", "correction_rate", "inserted_ratio")
+            "log_hold", "log_iki", "correction_rate", "inserted_ratio")
 # Device-neutral weights: typing and correction dynamics carry the most personal
 # signal; duration is down-weighted because fatigue shifts it for the real user.
 WEIGHTS = {"log_duration": 0.4, "path_ratio": 1.2, "settle_ratio": 0.8,
-           "submovements": 1.0, "log_iki": 1.5, "correction_rate": 1.2,
-           "inserted_ratio": 0.6}
+           "submovements": 1.0, "log_hold": 0.9, "log_iki": 1.5,
+           "correction_rate": 1.2, "inserted_ratio": 0.6}
 #: Floors on within-person spread. A five-session MAD underestimates real
 #: session-to-session variation and turns ordinary variation into doubt;
 #: differences below these are not treated as evidence.
 MAD_FLOOR = {"log_duration": 0.10, "path_ratio": 0.04, "settle_ratio": 0.12,
-             "submovements": 0.30, "log_iki": 0.12, "correction_rate": 0.04,
-             "inserted_ratio": 0.10}
+             "submovements": 0.30, "log_hold": 0.08, "log_iki": 0.12,
+             "correction_rate": 0.04, "inserted_ratio": 0.10}
 STYLES = ("mouse_keyboard", "slow_pointer_dictation", "eyegaze_osk", "switch_scan")
 HERE = pathlib.Path(__file__).resolve().parent
 
@@ -134,7 +134,7 @@ def _acq(rng, p, style, t, events, feats):
     settle = p.settle * rng.uniform(0.93, 1.07)
     down_t = round(t + dur + settle)
     events.append({"type": "down", "t": down_t, "x": round(tx, 4), "y": round(ty, 4)})
-    events.append({"type": "up", "t": down_t + round(rng.uniform(40, 110)), "x": round(tx, 4), "y": round(ty, 4)})
+    events.append({"type": "up", "t": down_t + max(20, round(p.dwell * rng.uniform(0.85, 1.15))), "x": round(tx, 4), "y": round(ty, 4)})
     if STYLE[style]["pointer"]:
         feats.append(dict(log_duration=math.log(dur), path_ratio=path / straight,
                           settle_ratio=math.log(settle / dur), submovements=steps))
@@ -222,26 +222,41 @@ def load_sessions(path: pathlib.Path):
 def features(events):
     """Aggregates from any recording in the documented format (device-neutral)."""
     # acquisitions: moves followed by a down event
-    acqs = []; cur = []
+    acqs = []; cur = []; last_down = None
     for e in events:
         if e.get("type") == "move": cur.append(e)
         elif e.get("type") == "down":
-            cur.append(e); acqs.append(cur); cur = []
+            acqs.append((cur[:], e, last_down)); cur = []
+            last_down = e["t"]
     feats = []
-    for a in acqs:
-        if len(a) < 2: continue
-        pts = [(e.get("x", 0.0), e.get("y", 0.0)) for e in a]
-        path = sum(math.dist(pts[i], pts[i+1]) for i in range(len(pts)-1))
-        straight = math.dist(pts[0], pts[-1]) or 1e-6
-        dur = max(1, a[-1]["t"] - a[0]["t"])
-        settle = max(1, a[-1]["t"] - a[-2]["t"])
-        feats.append(dict(log_duration=math.log(dur), path_ratio=path / straight,
-                          settle_ratio=math.log(settle / dur), submovements=len(a) - 1))
+    for moves, click, prev in acqs:
+        if len(moves) >= 2:
+            pts = [(e.get("x", 0.0), e.get("y", 0.0)) for e in moves]
+            path = sum(math.dist(pts[i], pts[i+1]) for i in range(len(pts)-1))
+            straight = math.dist(pts[0], pts[-1]) or 1e-6
+            dur = max(1, click["t"] - moves[0]["t"])
+            settle = max(1, click["t"] - moves[-1]["t"])
+            feats.append(dict(log_duration=math.log(dur), path_ratio=path / straight,
+                              settle_ratio=math.log(settle / dur), submovements=len(moves) - 1))
+        elif click.get("type") == "down" and prev is not None:
+            # No pointer channel (switch/scan access): the click cadence is the
+            # acquisition interval. Omitting it left switch users distinguishable
+            # only by typing rhythm, which is why that cell admitted 12.5%.
+            dur = max(1, click["t"] - prev)
+            feats.append(dict(log_duration=math.log(dur), path_ratio=1.0,
+                              settle_ratio=0.0, submovements=0.0))
+    holds = []; pending = None
+    for e in events:
+        if e.get("type") == "down": pending = e["t"]
+        elif e.get("type") == "up" and pending is not None:
+            holds.append(max(1, e["t"] - pending)); pending = None
+    hold = statistics.median(holds) if holds else 100
     texts = [e for e in events if e.get("type") == "text"]
     ikis = [max(1, texts[i]["t"] - texts[i-1]["t"]) for i in range(1, len(texts))]
     corr = sum(1 for e in texts if e.get("op") == "replace")
     ins = sum(1 for e in texts if e.get("source") == "inserted")
-    feats.append(dict(log_iki=math.log(statistics.median(ikis)) if ikis else math.log(300),
+    feats.append(dict(log_hold=math.log(hold),
+                      log_iki=math.log(statistics.median(ikis)) if ikis else math.log(300),
                       correction_rate=(corr / len(texts)) if texts else 0.0,
                       inserted_ratio=(ins / len(texts)) if texts else 0.0))
     agg = {}
