@@ -332,6 +332,7 @@ def cmd_demo():
              genuine=tot["gen"], impostors=tot["imp"])
     t["PASS"] = t["swap_rate"] == 0.0
     results["total"] = t
+    (HERE / "out").mkdir(exist_ok=True)
     (HERE / "out" / "demo_results.json").write_text(json.dumps(results, indent=1))
     print(f"Marrow {VERSION} — synthetic data, threshold {DECISION_THRESHOLD} fixed before evaluation")
     print(f"{'style':26} {'FRR':>6} {'FAR':>6} {'swap-admit':>11}")
